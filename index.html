@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Work Hours Tracker</title>
+
+<style>
+body
+{
+    font-family: Arial, sans-serif;
+    text-align: center;
+    padding: 20px;
+    background: #01101f;
+    color: white;
+}
+
+.container
+{
+    max-width: 400px;
+    margin: auto;
+}
+
+h1
+{
+    margin-bottom: 30px;
+}
+
+.hours
+{
+    font-size: 64px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    color: #8bfe8f;
+}
+
+.status
+{
+    font-size: 24px;
+    margin-bottom: 30px;
+    min-height: 60px;
+}
+
+button
+{
+    padding: 20px;
+    font-size: 24px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+#shiftButton
+{
+    background: #8bfe8f;
+    color: white;
+}
+
+#breakButton
+{
+    background: #2196F3;
+    color: white;
+}
+
+#lunchButton
+{
+    background: #FF9800;
+    color: white;
+}
+
+#shiftButton
+{
+    width: 100%;
+    background: #4CAF50;
+    color: white;
+    margin-bottom: 15px;
+}
+
+.buttonRow
+{
+    display: flex;
+    gap: 10px;
+}
+
+#breakButton,
+#lunchButton
+{
+    flex: 1;
+    background: #2196F3;
+    color: white;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Hours Tracker</h1>
+
+<div id="hoursText" class="hours">
+0.0
+</div>
+
+<div id="statusText" class="status">
+Not Working
+</div>
+
+<button id="shiftButton">
+Start Shift
+</button>
+
+<div class="buttonRow">
+
+    <button id="breakButton">
+    Break
+    </button>
+
+    <button id="lunchButton">
+    Lunch
+    </button>
+
+</div>
+
+</div>
+
+<script>
+
+const State =
+{
+    OffDuty: 0,
+    Working: 1,
+    Break: 2,
+    Lunch: 3
+};
+
+let data =
+{
+    shiftActive: false,
+    shiftStart: null,
+
+    state: State.OffDuty,
+
+    pauseStart: null,
+    pauseEnd: null,
+
+    unpaidLunchSeconds: 0
+};
+
+function save()
+{
+    localStorage.setItem(
+        "workTracker",
+        JSON.stringify(data)
+    );
+}
+
+function load()
+{
+    const saved =
+        localStorage.getItem("workTracker");
+
+    if(saved)
+    {
+        data = JSON.parse(saved);
+    }
+}
+
+function formatTime(date)
+{
+    return date.toLocaleTimeString(
+        [],
+        {
+            hour: 'numeric',
+            minute: '2-digit'
+        }
+    );
+}
+
+function startShift()
+{
+    data.shiftActive = true;
+
+    data.shiftStart =
+        new Date().toISOString();
+
+    data.unpaidLunchSeconds = 0;
+
+    data.state = State.Working;
+
+    save();
+}
+
+function endShift()
+{
+    data.shiftActive = false;
+
+    data.state = State.OffDuty;
+
+    save();
+}
+
+function startBreak()
+{
+    if(!data.shiftActive)
+        return;
+
+    if(data.state !== State.Working)
+        return;
+
+    const now = new Date();
+
+    data.pauseStart =
+        now.toISOString();
+
+    data.pauseEnd =
+        new Date(
+            now.getTime() + 15 * 60 * 1000
+        ).toISOString();
+
+    data.state = State.Break;
+
+    save();
+}
+
+function startLunch()
+{
+    if(!data.shiftActive)
+        return;
+
+    if(data.state !== State.Working)
+        return;
+
+    const now = new Date();
+
+    data.pauseStart =
+        now.toISOString();
+
+    data.pauseEnd =
+        new Date(
+            now.getTime() + 30 * 60 * 1000
+        ).toISOString();
+
+    data.state = State.Lunch;
+
+    save();
+}
+
+function updateUI()
+{
+    const hoursText =
+        document.getElementById("hoursText");
+
+    const statusText =
+        document.getElementById("statusText");
+
+    const shiftButton =
+        document.getElementById("shiftButton");
+
+    if(!data.shiftActive)
+    {
+        hoursText.innerText = "0.0";
+        statusText.innerText = "Not Working";
+        shiftButton.innerText = "Start Shift";
+        return;
+    }
+
+    shiftButton.innerText = "End Shift";
+    shiftButton.style.background = "#f44336";
+
+    const now = new Date();
+
+    if(
+        data.state === State.Break ||
+        data.state === State.Lunch
+    )
+    {
+        const end =
+            new Date(data.pauseEnd);
+
+        if(now >= end)
+        {
+            if(data.state === State.Lunch)
+            {
+                const start =
+                    new Date(data.pauseStart);
+
+                data.unpaidLunchSeconds +=
+                    (end - start) / 1000;
+            }
+
+            data.state = State.Working;
+
+            save();
+        }
+    }
+
+    if(data.state === State.Break)
+    {
+        statusText.innerText =
+            "On Break\nEnds " +
+            formatTime(
+                new Date(data.pauseEnd)
+            );
+    }
+    else if(data.state === State.Lunch)
+    {
+        statusText.innerText =
+            "On Lunch\nEnds " +
+            formatTime(
+                new Date(data.pauseEnd)
+            );
+    }
+    else
+    {
+        statusText.innerText =
+            "Currently Working";
+    }
+
+    let workedSeconds =
+        (now -
+        new Date(data.shiftStart))
+        / 1000;
+
+    workedSeconds -=
+        data.unpaidLunchSeconds;
+
+    if(data.state === State.Lunch)
+    {
+        workedSeconds -=
+        (
+            now -
+            new Date(data.pauseStart)
+        ) / 1000;
+    }
+
+    workedSeconds =
+        Math.max(
+            0,
+            workedSeconds
+        );
+
+    const hours =
+        workedSeconds / 3600;
+
+    hoursText.innerText =
+        hours.toFixed(1);
+}
+
+document
+.getElementById("shiftButton")
+.addEventListener(
+    "click",
+    () =>
+    {
+        if(data.shiftActive)
+        {
+            endShift();
+        }
+        else
+        {
+            startShift();
+        }
+    }
+);
+
+document
+.getElementById("breakButton")
+.addEventListener(
+    "click",
+    startBreak
+);
+
+document
+.getElementById("lunchButton")
+.addEventListener(
+    "click",
+    startLunch
+);
+
+load();
+
+updateUI();
+
+setInterval(
+    updateUI,
+    1000
+);
+
+</script>
+
+</body>
+</html>
