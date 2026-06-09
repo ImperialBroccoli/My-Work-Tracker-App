@@ -1,0 +1,9 @@
+{
+  "name": "Hours Tracker",
+  "short_name": "Hours",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#01101f",
+  "theme_color": "#4CAF50",
+  "icons": []
+}
